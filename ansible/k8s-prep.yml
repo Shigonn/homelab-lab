@@ -53,6 +53,13 @@
       when: cgroup_check.rc != 0
       notify: Restart containerd
 
+    - name: Point containerd at the CNI plugin folder
+      ansible.builtin.replace:
+        path: /etc/containerd/config.toml
+        regexp: "/usr/lib/cni"
+        replace: "/opt/cni/bin"
+      notify: Restart containerd
+
     - name: Kubernetes apt key folder
       ansible.builtin.file:
         path: /etc/apt/keyrings
