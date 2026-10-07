@@ -1,0 +1,98 @@
+- name: Prepare Kubernetes nodes
+  hosts: k8s
+  become: true
+  vars:
+    k8s_minor: "v1.35"
+  tasks:
+    - name: Base packages and containerd
+      ansible.builtin.apt:
+        name: [apt-transport-https, ca-certificates, curl, gpg, containerd]
+        update_cache: true
+
+    - name: Turn swap off now
+      ansible.builtin.command: swapoff -a
+      changed_when: false
+
+    - name: Keep swap off after reboot
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\sswap\s.*)$'
+        replace: '# \1'
+
+    - name: Load kernel modules at boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: "overlay\nbr_netfilter\n"
+
+    - name: Load kernel modules now
+      ansible.builtin.command: "modprobe {{ item }}"
+      loop: [overlay, br_netfilter]
+      changed_when: false
+
+    - name: Network settings for Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-k8s.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward = 1
+
+    - name: Apply network settings
+      ansible.builtin.command: sysctl --system
+      changed_when: false
+
+    - name: Check containerd uses systemd cgroups
+      ansible.builtin.command: grep -q "SystemdCgroup = true" /etc/containerd/config.toml
+      register: cgroup_check
+      failed_when: false
+      changed_when: false
+
+    - name: Write containerd config with systemd cgroups
+      ansible.builtin.shell: |
+        containerd config default | sed 's/SystemdCgroup = false/SystemdCgroup = true/' > /etc/containerd/config.toml
+      when: cgroup_check.rc != 0
+      notify: Restart containerd
+
+    - name: Kubernetes apt key folder
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download Kubernetes apt key
+      ansible.builtin.get_url:
+        url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/deb/Release.key"
+        dest: /etc/apt/keyrings/kubernetes-release.key
+        mode: "0644"
+
+    - name: Convert key for apt
+      ansible.builtin.command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /etc/apt/keyrings/kubernetes-release.key
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Kubernetes apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/deb/ /\n"
+
+    - name: Install kubelet, kubeadm and kubectl
+      ansible.builtin.apt:
+        name: [kubelet, kubeadm, kubectl]
+        update_cache: true
+
+    - name: Hold Kubernetes packages at this version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [kubelet, kubeadm, kubectl]
+
+    - name: Enable kubelet
+      ansible.builtin.service:
+        name: kubelet
+        enabled: true
+
+  handlers:
+    - name: Restart containerd
+      ansible.builtin.service:
+        name: containerd
+        state: restarted
