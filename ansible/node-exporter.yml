@@ -14,3 +14,4 @@
         name: prometheus-node-exporter
         state: started
         enabled: true
+  bad: [unclosed
