@@ -1,0 +1,13 @@
+- name: Build tools on the Jenkins VM
+  hosts: jenkins
+  become: true
+  tasks:
+    - name: Install git, ansible-core and yamllint
+      ansible.builtin.apt:
+        name:
+          - git
+          - ansible-core
+          - yamllint
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
