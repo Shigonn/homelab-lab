@@ -1,0 +1,26 @@
+- name: Helm on lab-control
+  hosts: control
+  become: true
+  tasks:
+    - name: Prerequisite for deb822_repository
+      ansible.builtin.apt:
+        name: python3-debian
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Helm apt repo (deb822)
+      ansible.builtin.deb822_repository:
+        name: helm
+        types: deb
+        uris: https://packages.buildkite.com/helm-linux/helm-debian/any/
+        suites: any
+        components: main
+        signed_by: https://packages.buildkite.com/helm-linux/helm-debian/gpgkey
+        state: present
+
+    - name: Install Helm
+      ansible.builtin.apt:
+        name: helm
+        state: present
+        update_cache: true
