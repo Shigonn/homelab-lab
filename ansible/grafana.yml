@@ -1,0 +1,54 @@
+- name: Grafana on the monitoring VM
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Prerequisite for deb822_repository
+      ansible.builtin.apt:
+        name: python3-debian
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Grafana apt repo (deb822)
+      ansible.builtin.deb822_repository:
+        name: grafana
+        types: deb
+        uris: https://apt.grafana.com
+        suites: stable
+        components: main
+        signed_by: https://apt.grafana.com/gpg-full.key
+        state: present
+
+    - name: Install Grafana
+      ansible.builtin.apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+    - name: Provision Prometheus datasource
+      ansible.builtin.copy:
+        dest: /etc/grafana/provisioning/datasources/prometheus.yml
+        owner: root
+        group: grafana
+        mode: "0640"
+        content: |
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              access: proxy
+              url: http://localhost:9090
+              isDefault: true
+      notify: Restart grafana
+
+    - name: Enable and start Grafana
+      ansible.builtin.service:
+        name: grafana-server
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart grafana
+      ansible.builtin.service:
+        name: grafana-server
+        state: restarted

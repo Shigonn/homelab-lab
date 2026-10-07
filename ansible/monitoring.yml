@@ -1,0 +1,40 @@
+- name: Prometheus on the monitoring VM
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Install Prometheus
+      ansible.builtin.apt:
+        name: prometheus
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Set retention flags
+      ansible.builtin.copy:
+        dest: /etc/default/prometheus
+        content: |
+          ARGS="--storage.tsdb.retention.time=15d --storage.tsdb.retention.size=8GB"
+        mode: "0644"
+      notify: Restart prometheus
+
+    - name: Deploy scrape config (validated first)
+      ansible.builtin.copy:
+        src: files/prometheus.yml
+        dest: /etc/prometheus/prometheus.yml
+        owner: root
+        group: root
+        mode: "0644"
+        validate: promtool check config %s
+      notify: Restart prometheus
+
+    - name: Enable and start Prometheus
+      ansible.builtin.service:
+        name: prometheus
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart prometheus
+      ansible.builtin.service:
+        name: prometheus
+        state: restarted
