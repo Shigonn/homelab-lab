@@ -45,18 +45,16 @@ roleRef:
   kind: Role
   name: app-deployer
 ---
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: dev-team-binding
+  name: reader-binding
   namespace: dev
 subjects:
-  - kind: Group
-    name: dev-team
-    apiGroup: rbac.authorization.k8s.io
+  - kind: ServiceAccount
+    name: reader
+    namespace: dev
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: app-deployer
-
+  kind: ClusterRole
+  name: view
