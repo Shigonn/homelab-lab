@@ -1,0 +1,32 @@
+- name: kubectl on lab-control
+  hosts: control
+  become: true
+  vars:
+    k8s_minor: v1.35
+  tasks:
+    - name: Prerequisite for deb822_repository
+      ansible.builtin.apt:
+        name: python3-debian
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Kubernetes apt repo (deb822)
+      ansible.builtin.deb822_repository:
+        name: kubernetes
+        types: deb
+        uris: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/deb/"
+        suites: /
+        signed_by: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor }}/deb/Release.key"
+        state: present
+
+    - name: Install kubectl
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+        update_cache: true
+
+    - name: Hold kubectl at this minor version
+      ansible.builtin.dpkg_selections:
+        name: kubectl
+        selection: hold
