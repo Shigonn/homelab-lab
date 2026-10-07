@@ -1,7 +1,8 @@
 # homelab-lab
 
 A DevOps training lab built entirely from code and rebuildable from scratch.
-Terraform provisions the VMs on Proxmox VE; Ansible configures them.
+Terraform provisions the VMs on Proxmox VE; Ansible configures them; Helm
+deploys cluster services; Jenkins checks every push.
 
 ## What it builds
 
@@ -9,16 +10,21 @@ Terraform provisions the VMs on Proxmox VE; Ansible configures them.
 |----|------|
 | k8s-cp, k8s-w1, k8s-w2 | Kubernetes v1.35 cluster (kubeadm, containerd, Flannel) |
 | monitoring | Prometheus + Grafana, node exporter on every VM |
-| jenkins | Jenkins LTS on Java 21 |
-| lab-control | Workstation running Terraform and Ansible |
+| jenkins | Jenkins LTS on Java 21, CI pipeline for this repo |
+| lab-control | Workstation running Terraform, Ansible, kubectl and Helm |
+
+Inside the cluster: MetalLB (layer 2, pool 10.10.10.66-70) gives bare-metal
+LoadBalancer IPs, Traefik is the ingress controller, and a demo app
+(Deployment + Service + Ingress) is served through it.
 
 ## Stack
 
 - **Terraform** (bpg/proxmox provider): VMs cloned from a Debian 13 cloud-init template
-- **Ansible**: node prep, Kubernetes prerequisites, monitoring stack, Jenkins
+- **Ansible**: node prep, Kubernetes prerequisites, monitoring, Jenkins, workstation tools
 - **Kubernetes** via kubeadm, 1 control plane and 2 workers
+- **Helm**: MetalLB and Traefik
 - **Prometheus / Grafana**: 15-day retention, Node Exporter Full dashboard
-- **Jenkins**: installed from the official apt repository
+- **Jenkins**: Pipeline from SCM; yamllint and ansible-playbook syntax checks
 
 ## Layout
 
@@ -26,14 +32,21 @@ Terraform provisions the VMs on Proxmox VE; Ansible configures them.
 - `ansible/inventory.ini`: host groups
 - `ansible/k8s-prep.yml`: swap off, kernel modules, sysctl, containerd, kubeadm packages
 - `ansible/node-exporter.yml`, `monitoring.yml`, `grafana.yml`: observability
-- `ansible/jenkins.yml`: Jenkins
+- `ansible/jenkins.yml`, `jenkins-tools.yml`: Jenkins and its build tools
+- `ansible/kubectl.yml`, `helm.yml`: workstation tooling
+- `k8s/`: MetalLB address pool, Traefik Helm values, demo app manifests
+- `Jenkinsfile`: CI pipeline
 
 ## Rebuild
 
 1. Provide Proxmox API credentials via environment variables (never committed).
 2. `terraform apply -parallelism=2`
 3. `ansible-playbook k8s-prep.yml`, then `kubeadm init` and join the workers.
-4. `ansible-playbook node-exporter.yml monitoring.yml grafana.yml jenkins.yml`
+4. `ansible-playbook node-exporter.yml monitoring.yml grafana.yml jenkins.yml jenkins-tools.yml kubectl.yml helm.yml`
+5. Copy the admin kubeconfig to lab-control (kept out of git).
+6. Install MetalLB with Helm, then `kubectl apply -f k8s/metallb-pool.yaml`.
+7. Install Traefik with Helm using `k8s/traefik-values.yaml`.
+8. `kubectl apply -f k8s/whoami.yaml`
 
 ## Notes and lessons
 
@@ -41,10 +54,15 @@ Terraform provisions the VMs on Proxmox VE; Ansible configures them.
   `bin_dir` must point at `/opt/cni/bin` or CoreDNS hangs in ContainerCreating.
 - Minimal Debian 13 cloud images have no `gpg`, so apt repositories are added
   with Ansible's `deb822_repository` module instead of `apt_repository`.
-- Secrets, state files and tfvars are excluded via `.gitignore`.
+- The community ingress-nginx controller was retired in March 2026, so the
+  lab uses Traefik; Gateway API is the planned next step.
+- Jenkins defaults to the `master` branch; this repo uses `main`.
+- CI was proven by deliberately pushing broken YAML, watching the build fail,
+  then reverting and watching it pass.
+- Secrets, state files, tfvars and kubeconfigs are excluded from the repo.
 
 ## Roadmap
 
-kubectl from the control host, a real app with Ingress, RBAC and NetworkPolicy
-(Calico/Cilium), Helm, Jenkins pipelines, GitLab CI, an AWS free-tier project
-with a budget alarm.
+RBAC and namespaces, NetworkPolicy (swap Flannel for Calico/Cilium), Helm
+chart authoring, Gateway API, Jenkins Configuration as Code, GitLab CI,
+an AWS free-tier project with a budget alarm.
