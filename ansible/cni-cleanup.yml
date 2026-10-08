@@ -1,0 +1,36 @@
+- name: Workers first, one at a time
+  hosts: k8s_workers
+  serial: 1
+  become: true
+  tasks:
+    - name: Remove Flannel CNI config
+      ansible.builtin.file:
+        path: /etc/cni/net.d/10-flannel.conflist
+        state: absent
+
+    - name: Remove Flannel IPAM state
+      ansible.builtin.file:
+        path: /var/lib/cni/networks/cbr0
+        state: absent
+
+    - name: Reboot and wait for the node to return
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+
+- name: Control plane last
+  hosts: k8s_cp
+  become: true
+  tasks:
+    - name: Remove Flannel CNI config
+      ansible.builtin.file:
+        path: /etc/cni/net.d/10-flannel.conflist
+        state: absent
+
+    - name: Remove Flannel IPAM state
+      ansible.builtin.file:
+        path: /var/lib/cni/networks/cbr0
+        state: absent
+
+    - name: Reboot and wait for the node to return
+      ansible.builtin.reboot:
+        reboot_timeout: 600
