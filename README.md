@@ -8,7 +8,7 @@ deploys cluster services; Jenkins checks every push.
 
 | VM | Role |
 |----|------|
-| k8s-cp, k8s-w1, k8s-w2 | Kubernetes v1.35 cluster (kubeadm, containerd, Flannel) |
+| k8s-cp, k8s-w1, k8s-w2 | Kubernetes v1.35 cluster (kubeadm, containerd, Calico) |
 | monitoring | Prometheus + Grafana, node exporter on every VM |
 | jenkins | Jenkins LTS on Java 21, CI pipeline for this repo |
 | lab-control | Workstation running Terraform, Ansible, kubectl and Helm |
@@ -61,6 +61,16 @@ LoadBalancer IPs, Traefik is the ingress controller, and a demo app
   then reverting and watching it pass.
 - Secrets, state files, tfvars and kubeconfigs are excluded from the repo.
 
+- CNI is Calico v3.31.5 (Tigera operator), pinned deliberately: newer releases
+  default to native v3 CRDs, which on Kubernetes 1.35 need an extra API server
+  feature gate. The v3.31 install is two manifests (`operator-crds.yaml`, then
+  `tigera-operator.yaml`) applied with `kubectl create`, then
+  `k8s/calico/custom-resources.yaml` with the pod CIDR set to 10.244.0.0/16.
+- Replacing Flannel in place: delete its namespace and RBAC, install Calico,
+  then `ansible/cni-cleanup.yml` removes Flannel's CNI config and reboots nodes
+  workers-first, control plane last.
+- NetworkPolicy is proven: default-deny in `demo`, then allow only the Traefik
+  namespace; direct access from other namespaces times out.
 ## Roadmap
 
 RBAC and namespaces, NetworkPolicy (swap Flannel for Calico/Cilium), Helm
