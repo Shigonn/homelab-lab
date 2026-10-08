@@ -7,3 +7,5 @@ crash.log
 .env
 *.pem
 *.key
+k8s/calico/operator-crds.yaml
+k8s/calico/tigera-operator.yaml
