@@ -46,6 +46,10 @@ LoadBalancer IPs, Traefik is the ingress controller, and a demo app
 5. Copy the admin kubeconfig to lab-control (kept out of git).
 6. Install MetalLB with Helm, then `kubectl apply -f k8s/metallb-pool.yaml`.
 7. Install Traefik with Helm using `k8s/traefik-values.yaml`.
+   (do this right after kubeadm init, before the workers join: from `k8s/calico/`, download the pinned v3.31.5 manifests with
+   `curl -fLO https://raw.githubusercontent.com/projectcalico/calico/v3.31.5/manifests/operator-crds.yaml`
+   and the same URL ending in `tigera-operator.yaml`, then `kubectl create -f` both, then
+   `kubectl create -f custom-resources.yaml`.)
 8. `kubectl apply -f k8s/whoami.yaml`
 
 ## Notes and lessons
