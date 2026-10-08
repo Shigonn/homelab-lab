@@ -77,6 +77,6 @@ LoadBalancer IPs, Traefik is the ingress controller, and a demo app
   namespace; direct access from other namespaces times out.
 ## Roadmap
 
-RBAC and namespaces, NetworkPolicy (swap Flannel for Calico/Cilium), Helm
+Cilium comparison, Helm
 chart authoring, Gateway API, Jenkins Configuration as Code, GitLab CI,
 an AWS free-tier project with a budget alarm.
